@@ -52,6 +52,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
+          routeBasePath: '/', // Docs as the homepage
           editUrl:
             'https://github.com/mlnomadpy/awesome-kernels/tree/main/docs/',
           remarkPlugins: [remarkMath],
@@ -112,11 +113,11 @@ const config: Config = {
           items: [
             {
               label: 'Papers',
-              to: '/docs/intro',
+              to: '/',
             },
             {
               label: 'RKHS Fundamentals',
-              to: '/docs/category/rkhs-fundamentals',
+              to: '/category/rkhs-fundamentals',
             },
           ],
         },
