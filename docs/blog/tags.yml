@@ -1,0 +1,15 @@
+kernel:
+  label: Kernel Methods
+  description: Posts about kernel methods
+rkhs:
+  label: RKHS
+  description: Posts about Reproducing Kernel Hilbert Spaces
+python:
+  label: Python
+  description: Python implementation tutorials
+implementation:
+  label: Implementation
+  description: Code implementations
+tutorial:
+  label: Tutorial
+  description: Step-by-step tutorials
