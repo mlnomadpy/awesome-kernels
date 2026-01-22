@@ -1,13 +1,13 @@
 ---
 slug: implementing-mmd-two-sample-test
-title: Implementing the MMD Two-Sample Test in Python
+title: Implementing the MMD Two-Sample Test in JAX
 authors: [mlnomadpy]
-tags: [kernel, python, implementation, tutorial, rkhs]
+tags: [kernel, jax, python, implementation, tutorial, rkhs]
 ---
 
-# Implementing the MMD Two-Sample Test in Python
+# Implementing the MMD Two-Sample Test in JAX
 
-The Maximum Mean Discrepancy (MMD) is a powerful kernel-based statistic for comparing distributions. In this post, we'll implement the MMD two-sample test from scratch and explore its applications.
+The Maximum Mean Discrepancy (MMD) is a powerful kernel-based statistic for comparing distributions. In this post, we'll implement the MMD two-sample test from scratch using JAX and explore its applications.
 
 <!--truncate-->
 
@@ -47,66 +47,65 @@ $$\widehat{\text{MMD}}_u^2 = \frac{1}{n(n-1)}\sum_{i \neq j} k(x_i, x_j) + \frac
 
 $$\widehat{\text{MMD}}_l^2 = \frac{2}{n}\sum_{i=1}^{n/2}[k(x_{2i-1}, x_{2i}) + k(y_{2i-1}, y_{2i}) - k(x_{2i-1}, y_{2i}) - k(x_{2i}, y_{2i-1})]$$
 
-## Python Implementation
+## JAX Implementation
 
 ```python
-import numpy as np
-from scipy.spatial.distance import cdist
-from scipy.stats import norm
+import jax
+import jax.numpy as jnp
+from jax import random, Array
+from typing import Optional, Dict, Any
+
+
+def rbf_kernel(X: Array, Y: Array, gamma: float) -> Array:
+    """Compute RBF kernel matrix."""
+    sq_norm_X = jnp.sum(X**2, axis=1, keepdims=True)
+    sq_norm_Y = jnp.sum(Y**2, axis=1, keepdims=True)
+    sq_dist = sq_norm_X + sq_norm_Y.T - 2 * jnp.dot(X, Y.T)
+    return jnp.exp(-gamma * sq_dist)
+
+
+def median_heuristic(X: Array, Y: Array) -> float:
+    """Compute kernel bandwidth using the median heuristic."""
+    XY = jnp.vstack([X, Y])
+    n = len(XY)
+    sq_norm = jnp.sum(XY**2, axis=1, keepdims=True)
+    sq_dist = sq_norm + sq_norm.T - 2 * jnp.dot(XY, XY.T)
+    mask = jnp.triu(jnp.ones((n, n), dtype=bool), k=1)
+    dists = jnp.sqrt(jnp.maximum(sq_dist[mask], 0.0))
+    median_dist = jnp.median(dists)
+    return 1.0 / (2 * median_dist**2 + 1e-10)
+
 
 class MMDTest:
     """
-    Maximum Mean Discrepancy Two-Sample Test.
+    Maximum Mean Discrepancy Two-Sample Test in JAX.
     
     Parameters
     ----------
-    kernel : str or callable, default='rbf'
-        Kernel function or name
+    kernel : str, default='rbf'
+        Kernel function name
     gamma : float, default=None
         RBF kernel bandwidth. If None, uses median heuristic.
     """
     
-    def __init__(self, kernel='rbf', gamma=None):
+    def __init__(self, kernel: str = 'rbf', gamma: Optional[float] = None):
         self.kernel = kernel
         self.gamma = gamma
+        self.gamma_: Optional[float] = None
         
-    def _compute_kernel(self, X, Y):
+    def _compute_kernel(self, X: Array, Y: Array) -> Array:
         """Compute kernel matrix."""
-        if callable(self.kernel):
-            return self.kernel(X, Y)
-        elif self.kernel == 'rbf':
-            sq_dist = cdist(X, Y, 'sqeuclidean')
-            return np.exp(-self.gamma * sq_dist)
+        if self.kernel == 'rbf':
+            return rbf_kernel(X, Y, self.gamma_)
         else:
             raise ValueError(f"Unknown kernel: {self.kernel}")
     
-    def _median_heuristic(self, X, Y):
-        """Set bandwidth using median heuristic."""
-        XY = np.vstack([X, Y])
-        dists = cdist(XY, XY, 'euclidean')
-        # Get upper triangle (excluding diagonal)
-        triu_indices = np.triu_indices(len(XY), k=1)
-        median_dist = np.median(dists[triu_indices])
-        # gamma = 1 / (2 * sigma^2), where sigma = median_dist
-        return 1.0 / (2 * median_dist**2 + 1e-10)
-    
-    def compute_mmd_squared(self, X, Y, unbiased=True):
-        """
-        Compute MMD^2 statistic.
-        
-        Parameters
-        ----------
-        X : array of shape (n, d) - samples from P
-        Y : array of shape (m, d) - samples from Q
-        unbiased : bool - use unbiased estimator
-        
-        Returns
-        -------
-        mmd_squared : float
-        """
-        # Set bandwidth if not specified
+    def compute_mmd_squared(
+        self, X: Array, Y: Array, unbiased: bool = True
+    ) -> float:
+        """Compute MMD^2 statistic."""
         if self.gamma is None:
-            self.gamma_ = self._median_heuristic(X, Y)
+            self.gamma_ = median_heuristic(X, Y)
         else:
             self.gamma_ = self.gamma
             
@@ -117,93 +116,52 @@ class MMDTest:
         K_XY = self._compute_kernel(X, Y)
         
         if unbiased:
-            # Unbiased estimator (exclude diagonal)
-            term_XX = (K_XX.sum() - np.trace(K_XX)) / (n * (n - 1))
-            term_YY = (K_YY.sum() - np.trace(K_YY)) / (m * (m - 1))
-            term_XY = K_XY.sum() / (n * m)
+            term_XX = (jnp.sum(K_XX) - jnp.trace(K_XX)) / (n * (n - 1))
+            term_YY = (jnp.sum(K_YY) - jnp.trace(K_YY)) / (m * (m - 1))
+            term_XY = jnp.sum(K_XY) / (n * m)
         else:
-            # Biased estimator
-            term_XX = K_XX.mean()
-            term_YY = K_YY.mean()
-            term_XY = K_XY.mean()
+            term_XX = jnp.mean(K_XX)
+            term_YY = jnp.mean(K_YY)
+            term_XY = jnp.mean(K_XY)
             
-        return term_XX + term_YY - 2 * term_XY
+        return float(term_XX + term_YY - 2 * term_XY)
     
-    def permutation_test(self, X, Y, n_permutations=1000, alpha=0.05):
-        """
-        Perform MMD test with permutation.
-        
-        Parameters
-        ----------
-        X, Y : arrays - samples from two distributions
-        n_permutations : int - number of permutations
-        alpha : float - significance level
-        
-        Returns
-        -------
-        result : dict with test results
-        """
+    def permutation_test(
+        self,
+        X: Array,
+        Y: Array,
+        n_permutations: int = 1000,
+        alpha: float = 0.05,
+        random_state: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Perform MMD permutation test."""
         n, m = len(X), len(Y)
-        
-        # Observed statistic
         observed_mmd = self.compute_mmd_squared(X, Y)
+        combined = jnp.vstack([X, Y])
         
-        # Pool samples
-        combined = np.vstack([X, Y])
-        
-        # Permutation distribution
+        key = random.PRNGKey(random_state or 0)
         null_distribution = []
-        for _ in range(n_permutations):
-            perm = np.random.permutation(n + m)
+        
+        for i in range(n_permutations):
+            key, subkey = random.split(key)
+            perm = random.permutation(subkey, n + m)
             X_perm = combined[perm[:n]]
             Y_perm = combined[perm[n:]]
             null_distribution.append(self.compute_mmd_squared(X_perm, Y_perm))
         
-        null_distribution = np.array(null_distribution)
-        
-        # Compute p-value (proportion of null >= observed)
-        p_value = (np.sum(null_distribution >= observed_mmd) + 1) / (n_permutations + 1)
-        
-        # Critical value
-        threshold = np.quantile(null_distribution, 1 - alpha)
+        null_distribution = jnp.array(null_distribution)
+        p_value = float(
+            (jnp.sum(null_distribution >= observed_mmd) + 1) / (n_permutations + 1)
+        )
+        threshold = float(jnp.quantile(null_distribution, 1 - alpha))
         
         return {
             'statistic': observed_mmd,
             'p_value': p_value,
             'reject_null': p_value < alpha,
             'threshold': threshold,
-            'null_distribution': null_distribution
+            'null_distribution': null_distribution,
         }
-    
-    def linear_time_mmd(self, X, Y):
-        """
-        Compute linear-time MMD estimator.
-        O(n) instead of O(n^2).
-        """
-        n = min(len(X), len(Y))
-        n = n - (n % 2)  # Make even
-        
-        X, Y = X[:n], Y[:n]
-        
-        if self.gamma is None:
-            self.gamma_ = self._median_heuristic(X, Y)
-        else:
-            self.gamma_ = self.gamma
-        
-        h_values = []
-        for i in range(0, n, 2):
-            x1, x2 = X[i:i+1], X[i+1:i+2]
-            y1, y2 = Y[i:i+1], Y[i+1:i+2]
-            
-            k_xx = self._compute_kernel(x1, x2)[0, 0]
-            k_yy = self._compute_kernel(y1, y2)[0, 0]
-            k_xy1 = self._compute_kernel(x1, y2)[0, 0]
-            k_xy2 = self._compute_kernel(x2, y1)[0, 0]
-            
-            h = k_xx + k_yy - k_xy1 - k_xy2
-            h_values.append(h)
-        
-        return np.mean(h_values)
 ```
 
 ## Example: Testing Identical Distributions
@@ -212,16 +170,18 @@ Under $H_0$, the MMD should be close to zero:
 
 ```python
 import matplotlib.pyplot as plt
+from jax import random
 
-np.random.seed(42)
+key = random.PRNGKey(42)
+key1, key2 = random.split(key)
 
 # Same distribution (H0 is true)
 n, m = 200, 200
-X = np.random.randn(n, 2)
-Y = np.random.randn(m, 2)
+X = random.normal(key1, (n, 2))
+Y = random.normal(key2, (m, 2))
 
 mmd_test = MMDTest()
-result = mmd_test.permutation_test(X, Y)
+result = mmd_test.permutation_test(X, Y, random_state=42)
 
 print(f"MMD² = {result['statistic']:.6f}")
 print(f"p-value = {result['p_value']:.4f}")
@@ -243,13 +203,14 @@ plt.show()
 
 ```python
 # Different distributions (H1 is true)
-np.random.seed(42)
+key = random.PRNGKey(42)
+key1, key2 = random.split(key)
 
-X = np.random.randn(200, 2)
-Y = np.random.randn(200, 2) + np.array([1.0, 0.5])  # Shifted mean
+X = random.normal(key1, (200, 2))
+Y = random.normal(key2, (200, 2)) + jnp.array([1.0, 0.5])  # Shifted mean
 
 mmd_test = MMDTest()
-result = mmd_test.permutation_test(X, Y)
+result = mmd_test.permutation_test(X, Y, random_state=42)
 
 print(f"MMD² = {result['statistic']:.6f}")
 print(f"p-value = {result['p_value']:.4f}")
@@ -291,12 +252,15 @@ def compute_power(dist_shift, n_samples, n_trials=100):
     """Estimate test power for given shift and sample size."""
     rejections = 0
     
-    for _ in range(n_trials):
-        X = np.random.randn(n_samples, 2)
-        Y = np.random.randn(n_samples, 2) + dist_shift
+    for trial in range(n_trials):
+        key = random.PRNGKey(trial)
+        key1, key2 = random.split(key)
+        
+        X = random.normal(key1, (n_samples, 2))
+        Y = random.normal(key2, (n_samples, 2)) + dist_shift
         
         mmd_test = MMDTest()
-        result = mmd_test.permutation_test(X, Y, n_permutations=200)
+        result = mmd_test.permutation_test(X, Y, n_permutations=200, random_state=trial)
         
         if result['reject_null']:
             rejections += 1
@@ -304,8 +268,8 @@ def compute_power(dist_shift, n_samples, n_trials=100):
     return rejections / n_trials
 
 # Power vs shift
-shifts = np.linspace(0, 1.5, 10)
-powers = [compute_power(np.array([s, 0]), 100, n_trials=50) for s in shifts]
+shifts = jnp.linspace(0, 1.5, 10)
+powers = [compute_power(jnp.array([s, 0]), 100, n_trials=50) for s in shifts]
 
 plt.figure(figsize=(8, 5))
 plt.plot(shifts, powers, 'bo-', linewidth=2, markersize=8)
@@ -317,6 +281,14 @@ plt.legend()
 plt.grid(True, alpha=0.3)
 plt.show()
 ```
+
+## JAX Benefits for MMD
+
+Using JAX for MMD computation provides:
+- **JIT Compilation**: Speed up permutation tests with `jax.jit`
+- **Parallelization**: Use `jax.vmap` to vectorize over permutations
+- **GPU Acceleration**: Compute kernel matrices on GPU for large samples
+- **Automatic Differentiation**: Optimize kernel parameters if needed
 
 ## Applications
 
@@ -363,30 +335,6 @@ def feature_importance_mmd(X, Y):
     return sorted(importances, key=lambda x: x[1], reverse=True)
 ```
 
-## Kernel Selection
-
-The median heuristic is a good default, but optimal bandwidth depends on the problem:
-
-```python
-def optimize_kernel_bandwidth(X, Y, gammas):
-    """Find bandwidth maximizing test power."""
-    best_power = 0
-    best_gamma = None
-    
-    for gamma in gammas:
-        mmd_test = MMDTest(gamma=gamma)
-        result = mmd_test.permutation_test(X, Y, n_permutations=100)
-        
-        # Use statistic/threshold ratio as proxy for power
-        power_proxy = result['statistic'] / (result['threshold'] + 1e-10)
-        
-        if power_proxy > best_power:
-            best_power = power_proxy
-            best_gamma = gamma
-    
-    return best_gamma, best_power
-```
-
 ## Conclusion
 
 The MMD two-sample test is:
@@ -398,6 +346,8 @@ Key takeaways:
 1. Use unbiased estimator for hypothesis testing
 2. Median heuristic is a good default for bandwidth
 3. Permutation test controls Type I error correctly
+
+The complete JAX implementation is available in our [examples folder](https://github.com/mlnomadpy/awesome-kernels/tree/main/examples).
 
 ---
 

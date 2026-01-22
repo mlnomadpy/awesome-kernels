@@ -2,12 +2,12 @@
 slug: implementing-kernel-ridge-regression
 title: Implementing Kernel Ridge Regression from Scratch
 authors: [mlnomadpy]
-tags: [kernel, python, implementation, tutorial]
+tags: [kernel, jax, python, implementation, tutorial]
 ---
 
-# Implementing Kernel Ridge Regression from Scratch in Python
+# Implementing Kernel Ridge Regression from Scratch in JAX
 
-Kernel Ridge Regression (KRR) is one of the most elegant kernel methods, combining the simplicity of ridge regression with the power of the kernel trick. In this post, we'll implement KRR from scratch and understand each component.
+Kernel Ridge Regression (KRR) is one of the most elegant kernel methods, combining the simplicity of ridge regression with the power of the kernel trick. In this post, we'll implement KRR from scratch using JAX and understand each component.
 
 <!--truncate-->
 
@@ -41,15 +41,40 @@ Solving (assuming $K$ is invertible or using regularization):
 
 $$\alpha = (K + n\lambda I)^{-1}y$$
 
-## Python Implementation
+## JAX Implementation
 
 ```python
-import numpy as np
-from scipy.spatial.distance import cdist
+import jax
+import jax.numpy as jnp
+from jax import Array
+from typing import Optional, Literal
+
+KernelType = Literal["rbf", "linear", "polynomial"]
+
+
+def rbf_kernel(X1: Array, X2: Array, gamma: float = 1.0) -> Array:
+    """Compute RBF (Gaussian) kernel matrix: K(x, y) = exp(-gamma * ||x - y||^2)"""
+    sq_norm1 = jnp.sum(X1**2, axis=1, keepdims=True)
+    sq_norm2 = jnp.sum(X2**2, axis=1, keepdims=True)
+    sq_dist = sq_norm1 + sq_norm2.T - 2 * jnp.dot(X1, X2.T)
+    return jnp.exp(-gamma * sq_dist)
+
+
+def linear_kernel(X1: Array, X2: Array) -> Array:
+    """Compute linear kernel matrix: K(x, y) = x^T y"""
+    return jnp.dot(X1, X2.T)
+
+
+def polynomial_kernel(
+    X1: Array, X2: Array, gamma: float = 1.0, coef0: float = 1.0, degree: int = 3
+) -> Array:
+    """Compute polynomial kernel: K(x, y) = (gamma * x^T y + coef0)^degree"""
+    return (gamma * jnp.dot(X1, X2.T) + coef0) ** degree
+
 
 class KernelRidgeRegression:
     """
-    Kernel Ridge Regression implementation.
+    Kernel Ridge Regression implementation in JAX.
     
     Parameters
     ----------
@@ -65,92 +90,80 @@ class KernelRidgeRegression:
         Regularization strength
     """
     
-    def __init__(self, kernel='rbf', gamma=1.0, degree=3, 
-                 coef0=1.0, alpha=1.0):
+    def __init__(
+        self,
+        kernel: KernelType = "rbf",
+        gamma: float = 1.0,
+        degree: int = 3,
+        coef0: float = 1.0,
+        alpha: float = 1.0,
+    ):
         self.kernel = kernel
         self.gamma = gamma
         self.degree = degree
         self.coef0 = coef0
         self.alpha = alpha
+        self.X_train_: Optional[Array] = None
+        self.dual_coef_: Optional[Array] = None
         
-    def _compute_kernel(self, X1, X2):
+    def _compute_kernel(self, X1: Array, X2: Array) -> Array:
         """Compute kernel matrix between X1 and X2."""
-        if self.kernel == 'rbf':
-            sq_dist = cdist(X1, X2, 'sqeuclidean')
-            return np.exp(-self.gamma * sq_dist)
-        elif self.kernel == 'linear':
-            return X1 @ X2.T
-        elif self.kernel == 'polynomial':
-            return (self.gamma * X1 @ X2.T + self.coef0) ** self.degree
+        if self.kernel == "rbf":
+            return rbf_kernel(X1, X2, self.gamma)
+        elif self.kernel == "linear":
+            return linear_kernel(X1, X2)
+        elif self.kernel == "polynomial":
+            return polynomial_kernel(X1, X2, self.gamma, self.coef0, self.degree)
         else:
             raise ValueError(f"Unknown kernel: {self.kernel}")
     
-    def fit(self, X, y):
-        """
-        Fit the model.
-        
-        Parameters
-        ----------
-        X : array of shape (n_samples, n_features)
-        y : array of shape (n_samples,)
-        """
+    def fit(self, X: Array, y: Array) -> "KernelRidgeRegression":
+        """Fit the model using JAX's linear solver."""
         self.X_train_ = X
         n = len(X)
-        
-        # Compute kernel matrix
         K = self._compute_kernel(X, X)
-        
-        # Solve (K + n*alpha*I)^{-1} y
-        self.dual_coef_ = np.linalg.solve(
-            K + n * self.alpha * np.eye(n), 
-            y
+        # Use JAX's optimized linear solver
+        self.dual_coef_ = jax.scipy.linalg.solve(
+            K + n * self.alpha * jnp.eye(n), y, assume_a="pos"
         )
-        
         return self
     
-    def predict(self, X):
-        """
-        Make predictions.
-        
-        Parameters
-        ----------
-        X : array of shape (n_samples, n_features)
-        
-        Returns
-        -------
-        y_pred : array of shape (n_samples,)
-        """
+    def predict(self, X: Array) -> Array:
+        """Make predictions."""
+        if self.X_train_ is None or self.dual_coef_ is None:
+            raise ValueError("Model not fitted. Call fit() first.")
         K = self._compute_kernel(X, self.X_train_)
-        return K @ self.dual_coef_
+        return jnp.dot(K, self.dual_coef_)
 ```
 
 ## Example: Fitting a Nonlinear Function
 
 ```python
 import matplotlib.pyplot as plt
+from jax import random
 
 # Generate synthetic data
-np.random.seed(42)
-X = np.linspace(0, 2*np.pi, 100).reshape(-1, 1)
-y = np.sin(X).ravel() + 0.1 * np.random.randn(100)
+key = random.PRNGKey(42)
+X = jnp.linspace(0, 2*jnp.pi, 100).reshape(-1, 1)
+y = jnp.sin(X).ravel() + 0.1 * random.normal(key, (100,))
 
 # Fit model
 krr = KernelRidgeRegression(kernel='rbf', gamma=1.0, alpha=0.01)
 krr.fit(X, y)
 
 # Predict
-X_test = np.linspace(0, 2*np.pi, 200).reshape(-1, 1)
+X_test = jnp.linspace(0, 2*jnp.pi, 200).reshape(-1, 1)
 y_pred = krr.predict(X_test)
 
 # Plot
 plt.figure(figsize=(10, 6))
 plt.scatter(X, y, c='blue', alpha=0.5, label='Training data')
 plt.plot(X_test, y_pred, 'r-', linewidth=2, label='KRR prediction')
-plt.plot(X_test, np.sin(X_test), 'g--', linewidth=2, label='True function')
+plt.plot(X_test, jnp.sin(X_test), 'g--', linewidth=2, label='True function')
 plt.legend()
 plt.xlabel('x')
 plt.ylabel('y')
-plt.title('Kernel Ridge Regression')
+plt.title('Kernel Ridge Regression (JAX)')
 plt.show()
 ```
 
@@ -184,6 +197,14 @@ KRR is equivalent to the posterior mean of a Gaussian Process with:
 
 where $\sigma^2 = n\lambda$.
 
+## JAX Benefits
+
+Using JAX for kernel methods provides several advantages:
+- **JIT Compilation**: Functions can be compiled for faster execution
+- **Automatic Differentiation**: Easy to compute gradients for optimization
+- **GPU/TPU Support**: Seamlessly scale to accelerators
+- **Functional Design**: Clean, composable code
+
 ## Computational Considerations
 
 The main bottleneck is solving the $n \times n$ linear system:
@@ -204,7 +225,7 @@ In upcoming posts, we'll implement:
 
 ## Full Code
 
-The complete implementation is available in our [GitHub repository](https://github.com/mlnomadpy/awesome-kernels).
+The complete JAX implementation is available in our [examples folder](https://github.com/mlnomadpy/awesome-kernels/tree/main/examples).
 
 ---
 
