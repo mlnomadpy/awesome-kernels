@@ -164,19 +164,47 @@ npm start
 npm run build
 ```
 
+### Python Examples (JAX)
+
+The repository includes JAX implementations of kernel methods in the `examples/` folder:
+
+```bash
+# Install Python dependencies
+pip install jax jaxlib pytest
+
+# Run tests
+pytest tests/ -v
+
+# Use the implementations
+python -c "from examples import KernelRidgeRegression, RandomFourierFeatures, MMDTest"
+```
+
+**Available modules:**
+- `KernelRidgeRegression` - Kernel Ridge Regression with RBF, linear, and polynomial kernels
+- `RandomFourierFeatures` - Random Fourier Features for scalable kernel approximation
+- `RFFRidgeRegression` - Ridge regression with Random Fourier Features
+- `MMDTest` - Maximum Mean Discrepancy two-sample test
+
 ### Documentation Structure
 
 ```
-docs/
+awesome-kernels/
+├── examples/                 # JAX implementations
+│   ├── kernel_ridge_regression.py
+│   ├── random_fourier_features.py
+│   └── mmd_test.py
+├── tests/                    # Unit tests
 ├── docs/
-│   ├── intro.md              # Introduction to kernel methods
-│   ├── rkhs-fundamentals/    # RKHS theory papers
-│   ├── kernel-learning/      # Kernel algorithms
-│   ├── support-vector-machines/  # SVM papers
-│   ├── kernel-embeddings/    # Distribution embeddings
-│   └── modern-advances/      # Recent developments
-├── blog/                     # Python implementations
-└── src/                      # Website components
+│   ├── docs/
+│   │   ├── intro.md              # Introduction to kernel methods
+│   │   ├── rkhs-fundamentals/    # RKHS theory papers
+│   │   ├── kernel-learning/      # Kernel algorithms
+│   │   ├── support-vector-machines/  # SVM papers
+│   │   ├── kernel-embeddings/    # Distribution embeddings
+│   │   └── modern-advances/      # Recent developments
+│   ├── blog/                     # Python/JAX implementations
+│   └── src/                      # Website components
+└── pyproject.toml            # Python project configuration
 ```
 
 ## 🤝 Contributing

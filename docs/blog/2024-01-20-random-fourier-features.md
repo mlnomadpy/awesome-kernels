@@ -2,12 +2,12 @@
 slug: implementing-random-fourier-features
 title: Random Fourier Features - Scalable Kernel Approximation
 authors: [mlnomadpy]
-tags: [kernel, python, implementation, tutorial]
+tags: [kernel, jax, python, implementation, tutorial]
 ---
 
 # Random Fourier Features: Making Kernel Methods Scalable
 
-Random Fourier Features (RFF) is a beautiful technique that approximates kernel functions with explicit feature maps, enabling linear-time training while maintaining kernel-like performance. Let's implement it from scratch!
+Random Fourier Features (RFF) is a beautiful technique that approximates kernel functions with explicit feature maps, enabling linear-time training while maintaining kernel-like performance. Let's implement it from scratch using JAX!
 
 <!--truncate-->
 
@@ -45,15 +45,20 @@ $$z(x) = \sqrt{\frac{2}{D}}[\cos(\omega_1^T x + b_1), \ldots, \cos(\omega_D^T x 
 
 with $b_j \sim \text{Uniform}(0, 2\pi)$.
 
-## Python Implementation
+## JAX Implementation
 
 ```python
-import numpy as np
-from scipy.spatial.distance import cdist
+import jax
+import jax.numpy as jnp
+from jax import random, Array
+from typing import Optional, Literal
+
+KernelType = Literal["rbf", "laplacian"]
+
 
 class RandomFourierFeatures:
     """
-    Random Fourier Features for kernel approximation.
+    Random Fourier Features for kernel approximation in JAX.
     
     Parameters
     ----------
@@ -67,67 +72,62 @@ class RandomFourierFeatures:
         Random seed for reproducibility
     """
     
-    def __init__(self, n_features=100, gamma=1.0, 
-                 kernel='rbf', random_state=None):
+    def __init__(
+        self,
+        n_features: int = 100,
+        gamma: float = 1.0,
+        kernel: KernelType = "rbf",
+        random_state: Optional[int] = None,
+    ):
         self.n_features = n_features
         self.gamma = gamma
         self.kernel = kernel
         self.random_state = random_state
+        self.omega_: Optional[Array] = None
+        self.b_: Optional[Array] = None
         
-    def fit(self, X):
-        """
-        Sample random frequencies.
-        
-        Parameters
-        ----------
-        X : array of shape (n_samples, n_features_in)
-        """
-        rng = np.random.RandomState(self.random_state)
+    def fit(self, X: Array) -> "RandomFourierFeatures":
+        """Sample random frequencies from the spectral density."""
+        key = random.PRNGKey(self.random_state or 0)
         n_features_in = X.shape[1]
+        key1, key2 = random.split(key)
         
         # Sample frequencies from spectral density
-        if self.kernel == 'rbf':
+        if self.kernel == "rbf":
             # Gaussian RBF: spectral density is Gaussian
-            self.omega_ = rng.randn(n_features_in, self.n_features) * np.sqrt(2 * self.gamma)
-        elif self.kernel == 'laplacian':
+            self.omega_ = (
+                random.normal(key1, (n_features_in, self.n_features))
+                * jnp.sqrt(2 * self.gamma)
+            )
+        elif self.kernel == "laplacian":
             # Laplacian kernel: spectral density is Cauchy
-            self.omega_ = rng.standard_cauchy((n_features_in, self.n_features)) * self.gamma
+            self.omega_ = (
+                random.cauchy(key1, (n_features_in, self.n_features)) * self.gamma
+            )
         else:
             raise ValueError(f"Unknown kernel: {self.kernel}")
         
         # Sample phase offsets uniformly
-        self.b_ = rng.uniform(0, 2 * np.pi, self.n_features)
+        self.b_ = random.uniform(key2, (self.n_features,)) * 2 * jnp.pi
         
         return self
     
-    def transform(self, X):
-        """
-        Compute random Fourier features.
-        
-        Parameters
-        ----------
-        X : array of shape (n_samples, n_features_in)
-        
-        Returns
-        -------
-        Z : array of shape (n_samples, n_features)
-        """
-        # Project data
-        projection = X @ self.omega_ + self.b_
-        
-        # Apply cosine and scale
-        Z = np.sqrt(2.0 / self.n_features) * np.cos(projection)
-        
+    def transform(self, X: Array) -> Array:
+        """Compute random Fourier features."""
+        if self.omega_ is None or self.b_ is None:
+            raise ValueError("Transformer not fitted. Call fit() first.")
+        projection = jnp.dot(X, self.omega_) + self.b_
+        Z = jnp.sqrt(2.0 / self.n_features) * jnp.cos(projection)
         return Z
     
-    def fit_transform(self, X):
+    def fit_transform(self, X: Array) -> Array:
         """Fit and transform in one step."""
         return self.fit(X).transform(X)
 
 
 class RFFRidgeRegression:
     """
-    Ridge regression with Random Fourier Features.
+    Ridge regression with Random Fourier Features in JAX.
     
     Parameters
     ----------
@@ -139,49 +139,63 @@ class RFFRidgeRegression:
         Regularization strength
     """
     
-    def __init__(self, n_features=100, gamma=1.0, alpha=1.0):
+    def __init__(
+        self,
+        n_features: int = 100,
+        gamma: float = 1.0,
+        alpha: float = 1.0,
+        random_state: Optional[int] = None,
+    ):
         self.n_features = n_features
         self.gamma = gamma
         self.alpha = alpha
+        self.random_state = random_state
+        self.rff_: Optional[RandomFourierFeatures] = None
+        self.weights_: Optional[Array] = None
         
-    def fit(self, X, y):
+    def fit(self, X: Array, y: Array) -> "RFFRidgeRegression":
         """Fit the model."""
-        # Create and fit random features
         self.rff_ = RandomFourierFeatures(
             n_features=self.n_features, 
-            gamma=self.gamma
+            gamma=self.gamma,
+            random_state=self.random_state,
         )
         Z = self.rff_.fit_transform(X)
         
         # Solve regularized least squares in feature space
-        A = Z.T @ Z + self.alpha * np.eye(self.n_features)
-        b = Z.T @ y
-        self.weights_ = np.linalg.solve(A, b)
+        A = jnp.dot(Z.T, Z) + self.alpha * jnp.eye(self.n_features)
+        b = jnp.dot(Z.T, y)
+        self.weights_ = jax.scipy.linalg.solve(A, b, assume_a="pos")
         
         return self
     
-    def predict(self, X):
+    def predict(self, X: Array) -> Array:
         """Make predictions."""
+        if self.rff_ is None or self.weights_ is None:
+            raise ValueError("Model not fitted. Call fit() first.")
         Z = self.rff_.transform(X)
-        return Z @ self.weights_
+        return jnp.dot(Z, self.weights_)
 ```
 
 ## Comparing Exact vs Approximate Kernels
 
-Let's verify the approximation quality:
+Let's verify the approximation quality with JAX:
 
 ```python
 import matplotlib.pyplot as plt
+from jax import random
 
 # Generate data
-np.random.seed(42)
+key = random.PRNGKey(42)
 n = 500
 d = 10
-X = np.random.randn(n, d)
+X = random.normal(key, (n, d))
 
 # Exact RBF kernel
 gamma = 0.5
-K_exact = np.exp(-gamma * cdist(X, X, 'sqeuclidean'))
+sq_norm = jnp.sum(X**2, axis=1, keepdims=True)
+sq_dist = sq_norm + sq_norm.T - 2 * jnp.dot(X, X.T)
+K_exact = jnp.exp(-gamma * sq_dist)
 
 # Approximate kernel with different D
 D_values = [10, 50, 100, 500, 1000]
@@ -190,10 +204,10 @@ errors = []
 for D in D_values:
     rff = RandomFourierFeatures(n_features=D, gamma=gamma, random_state=42)
     Z = rff.fit_transform(X)
-    K_approx = Z @ Z.T
+    K_approx = jnp.dot(Z, Z.T)
     
-    error = np.linalg.norm(K_exact - K_approx, 'fro') / np.linalg.norm(K_exact, 'fro')
-    errors.append(error)
+    error = jnp.linalg.norm(K_exact - K_approx, 'fro') / jnp.linalg.norm(K_exact, 'fro')
+    errors.append(float(error))
     print(f"D = {D:4d}: Relative error = {error:.4f}")
 
 plt.figure(figsize=(8, 5))
@@ -209,23 +223,24 @@ plt.show()
 
 ```python
 # Generate nonlinear regression data
-np.random.seed(42)
-X_train = np.sort(np.random.uniform(0, 2*np.pi, 200)).reshape(-1, 1)
-y_train = np.sin(X_train).ravel() + 0.1 * np.random.randn(200)
+key = random.PRNGKey(42)
+X_train = jnp.sort(random.uniform(key, (200,), minval=0, maxval=2*jnp.pi)).reshape(-1, 1)
+key, subkey = random.split(key)
+y_train = jnp.sin(X_train).ravel() + 0.1 * random.normal(subkey, (200,))
 
-X_test = np.linspace(0, 2*np.pi, 300).reshape(-1, 1)
+X_test = jnp.linspace(0, 2*jnp.pi, 300).reshape(-1, 1)
 
 # Compare different numbers of features
 fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
 for ax, D in zip(axes.flat, [10, 50, 200, 1000]):
-    model = RFFRidgeRegression(n_features=D, gamma=1.0, alpha=0.001)
+    model = RFFRidgeRegression(n_features=D, gamma=1.0, alpha=0.001, random_state=42)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     
     ax.scatter(X_train, y_train, c='blue', alpha=0.3, s=20)
     ax.plot(X_test, y_pred, 'r-', linewidth=2, label='RFF prediction')
-    ax.plot(X_test, np.sin(X_test), 'g--', linewidth=2, label='True function')
+    ax.plot(X_test, jnp.sin(X_test), 'g--', linewidth=2, label='True function')
     ax.set_title(f'D = {D} features')
     ax.legend()
 
@@ -252,19 +267,24 @@ times_exact = []
 times_rff = []
 
 for n in n_samples:
-    X = np.random.randn(n, 10)
-    y = np.random.randn(n)
+    key = random.PRNGKey(42)
+    X = random.normal(key, (n, 10))
+    y = random.normal(key, (n,))
     
     # Exact kernel
     start = time.time()
-    K = np.exp(-0.5 * cdist(X, X, 'sqeuclidean'))
-    alpha = np.linalg.solve(K + 0.01 * np.eye(n), y)
+    sq_norm = jnp.sum(X**2, axis=1, keepdims=True)
+    sq_dist = sq_norm + sq_norm.T - 2 * jnp.dot(X, X.T)
+    K = jnp.exp(-0.5 * sq_dist)
+    alpha = jax.scipy.linalg.solve(K + 0.01 * jnp.eye(n), y)
+    jax.block_until_ready(alpha)  # Wait for JAX async computation
     times_exact.append(time.time() - start)
     
     # RFF
     start = time.time()
     model = RFFRidgeRegression(n_features=D, gamma=0.5, alpha=0.01)
     model.fit(X, y)
+    jax.block_until_ready(model.weights_)
     times_rff.append(time.time() - start)
     
     print(f"n = {n:5d}: Exact = {times_exact[-1]:.3f}s, RFF = {times_rff[-1]:.3f}s")
@@ -279,39 +299,13 @@ plt.title('Scalability Comparison')
 plt.show()
 ```
 
-## Orthogonal Random Features
+## JAX Benefits for RFF
 
-We can improve RFF with orthogonal random features:
-
-```python
-def orthogonal_random_features(X, n_features, gamma, random_state=None):
-    """
-    Orthogonal Random Features for better approximation.
-    """
-    rng = np.random.RandomState(random_state)
-    n_features_in = X.shape[1]
-    
-    # Sample more frequencies than needed
-    n_samples_omega = max(n_features_in, n_features)
-    G = rng.randn(n_samples_omega, n_samples_omega)
-    
-    # Orthogonalize via QR decomposition
-    Q, _ = np.linalg.qr(G)
-    
-    # Scale and select
-    S = np.sqrt(np.random.chisquare(n_samples_omega, n_samples_omega))
-    omega = (Q * S)[:n_features_in, :n_features]
-    omega *= np.sqrt(2 * gamma)
-    
-    # Phase offsets
-    b = rng.uniform(0, 2 * np.pi, n_features)
-    
-    # Compute features
-    projection = X @ omega + b
-    Z = np.sqrt(2.0 / n_features) * np.cos(projection)
-    
-    return Z
-```
+Using JAX for Random Fourier Features provides:
+- **JIT Compilation**: Compile the transform function for faster repeated calls
+- **Automatic Batching**: Use `vmap` for vectorized operations
+- **GPU Acceleration**: Seamlessly run on GPUs for large datasets
+- **Composability**: Easy to chain with other JAX transformations
 
 ## When to Use RFF
 
@@ -333,6 +327,8 @@ Random Fourier Features transform kernel methods from $O(n^3)$ to $O(nD^2)$, mak
 1. Bochner's theorem connects kernels to Fourier transforms
 2. Monte Carlo approximation gives explicit features
 3. Standard linear methods can then be applied
+
+The complete JAX implementation is available in our [examples folder](https://github.com/mlnomadpy/awesome-kernels/tree/main/examples).
 
 ---
 
