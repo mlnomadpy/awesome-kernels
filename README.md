@@ -15,7 +15,7 @@ A curated collection of papers on **Kernel Methods** and **Reproducing Kernel Hi
 |------|-------|---------|-------|
 | 1909 | [Functions of Positive and Negative Type](https://doi.org/10.1098/rsta.1909.0016) | Mercer | Mercer's theorem, kernel eigendecomposition |
 | 1950 | [Theory of Reproducing Kernels](https://www.ams.org/journals/tran/1950-068-03/S0002-9947-1950-0051437-7/) | Aronszajn | RKHS foundations |
-| 1963 | [On the Uniform Convergence of Relative Frequencies](https://link.springer.com/article/10.1007/BF02921311) | Vapnik & Chervonenkis | VC theory foundations |
+| 1968 | [On the Uniform Convergence of Relative Frequencies](https://link.springer.com/article/10.1007/BF02921311) | Vapnik & Chervonenkis | VC theory foundations (English 1971) |
 | 1971 | [Some Results on Tchebycheffian Spline Functions](https://doi.org/10.1016/0022-247X(71)90184-3) | Kimeldorf & Wahba | Representer theorem |
 
 ### Support Vector Machines Era (1990-2000)
@@ -27,6 +27,7 @@ A curated collection of papers on **Kernel Methods** and **Reproducing Kernel Hi
 | 1998 | [Statistical Learning Theory](https://www.wiley.com/en-us/Statistical+Learning+Theory-p-9780471030034) | Vapnik | VC theory, SRM, SVM theory |
 | 1998 | [Nonlinear Component Analysis as a Kernel Eigenvalue Problem](https://www.face-rec.org/algorithms/Kernel/kernelPCA_scholkopf.pdf) | Schölkopf, Smola, Müller | Kernel PCA |
 | 1999 | [Kernel PCA and De-Noising in Feature Spaces](https://proceedings.neurips.cc/paper/1998/hash/226d1f15ecd35f784d2a20c3ecf56d7f-Abstract.html) | Mika et al. | Kernel PCA for denoising |
+| 1999 | [Convolution Kernels on Discrete Structures](https://www.jmlr.org/papers/v1/haussler99a.html) | Haussler | Convolution kernels |
 | 2000 | [Using the Nyström Method to Speed Up Kernel Machines](https://proceedings.neurips.cc/paper/2000/hash/19de10adbaa1b2ee13f77f679fa1483a-Abstract.html) | Williams & Seeger | Nyström approximation |
 
 ### Kernel Methods Golden Age (2001-2010)
@@ -50,8 +51,7 @@ A curated collection of papers on **Kernel Methods** and **Reproducing Kernel Hi
 | 2007 | [Optimal Rates for the Regularized Least-Squares Algorithm](https://link.springer.com/article/10.1007/s10208-006-0196-8) | Caponnetto, De Vito | Optimal learning rates |
 | 2008 | [Support Vector Machines](https://www.springer.com/gp/book/9780387772417) | Steinwart & Christmann | SVM theory textbook |
 | 2008 | [Kernel Measures of Conditional Dependence](https://papers.nips.cc/paper/2007/hash/3a0772443a0739141571f2e4e675a4e2-Abstract.html) | Fukumizu, Bach, Gretton | Conditional dependence measures |
-| 2009 | [Kernel Methods for Deep Learning](https://papers.nips.cc/paper/2009/hash/5751ec3e9a4feab575962e78e006250d-Abstract.html) | Cho, Saul | Arc-cosine kernels |
-| 2010 | [Convolution Kernels on Discrete Structures](https://www.jmlr.org/papers/v1/haussler99a.html) | Haussler | Convolution kernels |
+| 2009 | [Kernel Methods for Deep Learning](https://papers.nips.cc/paper/2009/hash/5751ec3e9a4feab575962e78e006250d-Abstract.html) | Cho, Saul | Arc-cosine kernels / compositional kernels |
 
 ### Kernel Embeddings & Modern Methods (2011-2020)
 
@@ -67,9 +67,9 @@ A curated collection of papers on **Kernel Methods** and **Reproducing Kernel Hi
 | 2015 | [Less Is More: Nyström Computational Regularization](https://arxiv.org/abs/1507.04717) | Rudi, Camoriano, Rosasco | Nyström regularization |
 | 2016 | [Orthogonal Random Features](https://proceedings.neurips.cc/paper/2016/hash/53adaf494dc89ef7196d73636eb2451b-Abstract.html) | Yu et al. | Improved random features |
 | 2016 | [Deep Kernel Learning](https://proceedings.mlr.press/v51/wilson16.html) | Wilson, Hu, Salakhutdinov, Xing | Deep kernels |
+| 2016 | [Toward Deeper Understanding of Neural Networks: Power of Initialization](https://proceedings.mlr.press/v49/daniely16.html) | Daniely, Frostig, Singer | NN initialization theory |
 | 2017 | [Kernel Mean Embedding of Distributions: A Review and Beyond](https://arxiv.org/abs/1605.09522) | Muandet et al. | Comprehensive review |
 | 2017 | [Breaking the Curse of Dimensionality with Random Features](https://arxiv.org/abs/1702.05803) | Bach | Random features analysis |
-| 2017 | [Toward Deeper Understanding of Neural Networks: Power of Initialization](https://proceedings.mlr.press/v49/daniely16.html) | Daniely, Frostig, Singer | NN initialization theory |
 | 2018 | [Neural Tangent Kernel](https://proceedings.neurips.cc/paper/2018/hash/5a4be1fa34e62bb8a6ec6b91d2462f5a-Abstract.html) | Jacot, Gabriel, Hongler | NTK theory |
 | 2018 | [On the Global Convergence of Gradient Descent for Over-Parameterized Models](https://arxiv.org/abs/1805.00915) | Chizat, Bach | Global convergence analysis |
 | 2018 | [Subsampling for Ridge Regression via Regularized Leverage Scores](https://arxiv.org/abs/1803.05049) | Avron, Clarkson, Woodruff | Leverage score sampling |
@@ -86,7 +86,7 @@ A curated collection of papers on **Kernel Methods** and **Reproducing Kernel Hi
 | 2020 | [Learning Deep Kernels for Non-Parametric Two-Sample Tests](https://proceedings.mlr.press/v119/liu20m.html) | Liu et al. | Deep kernel MMD |
 | 2021 | [Kernel Methods in Machine Learning](https://arxiv.org/abs/2011.00883) | Hofmann, Schölkopf, Smola | Survey paper |
 | 2022 | [The Implicit Regularization of Ordinary Least Squares Ensembles](https://proceedings.mlr.press/v151/lejeune22a.html) | Lejeune et al. | Ensemble kernel methods |
-| 2023 | [Scaling Laws for Neural Language Models Through the Lens of NTK](https://arxiv.org/abs/2305.16701) | Various | NTK scaling analysis |
+| 2023 | [Scaling Laws for Neural Language Models Through the Lens of the NTK](https://arxiv.org/abs/2305.16701) | Anagnostidis, Bachmann, Malach, Kaddour, Noci | NTK scaling analysis |
 
 ## 📖 Topics Covered
 
