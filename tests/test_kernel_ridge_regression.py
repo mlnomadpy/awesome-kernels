@@ -5,11 +5,6 @@ Unit tests for Kernel Ridge Regression implementation.
 import pytest
 import jax.numpy as jnp
 from jax import random
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from examples.kernel_ridge_regression import (
     KernelRidgeRegression,
