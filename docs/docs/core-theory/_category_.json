@@ -1,0 +1,8 @@
+{
+  "label": "Core Theory & Generalization",
+  "position": 7,
+  "link": {
+    "type": "generated-index",
+    "description": "Foundational papers on stability, generalization, and learning theory"
+  }
+}
