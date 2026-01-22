@@ -149,7 +149,8 @@ def sinkhorn_log_stabilized(M, r, c, lambda_reg=1.0, max_iter=100, tol=1e-9):
 def logsumexp(x, axis=None):
     """Numerically stable logsumexp."""
     x_max = np.max(x, axis=axis, keepdims=True)
-    return np.log(np.sum(np.exp(x - x_max), axis=axis)) + x_max.squeeze()
+    result = np.log(np.sum(np.exp(x - x_max), axis=axis))
+    return result + np.squeeze(x_max, axis=axis) if axis is not None else result + x_max.item()
 ```
 
 ### GPU-Accelerated Version
